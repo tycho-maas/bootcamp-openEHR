@@ -3,19 +3,32 @@
     import "medblocks-ui/dist/styles.js";
     import webtemplate from "./vital_signs_tycho_maas.v1.json";
 
+    // Patient identifier
     let ehrId = "ceb6ca7d-3a90-4943-a473-760cb7437d48";
+
+    // Base URL for openEHR REST API
     let openEHRRestEndpoint = "https://openehr-bootcamp.medblocks.com/ehrbase/rest/openehr/v1";
+
+    // Reference to the Medblocks Auto Form
     let form: any;
+
+    // List of previously submitted vitals
     let vitals: { uid: string, timestamp: string }[] = [];
+
+    // Toast notification state and content
     let showToast = false;
     let toastMessage = "";
     let toastTimeout: any;
-    let updatingVitals: string | null = null
 
+    // Tracks which vital is being updated (null if creating new)
+    let updatingVitals: string | null = null;
 
+    /**
+     * Submit new or updated vitals to the server.
+     */
     async function submitVitals() {
-        // Show loading toast
         if (!updatingVitals) {
+            // Submitting a new composition
             toastMessage = "Submitting...";
             showToast = true;
             clearTimeout(toastTimeout);
@@ -36,8 +49,8 @@
 
             if (response.ok) {
                 toastMessage = "Submission successful!";
-                form.import({}); // Clear form only after success
-                loadVitals(); // Refresh list
+                form.import({}); // Clear form
+                loadVitals(); // Reload vitals list
             } else {
                 toastMessage = "Submission failed.";
                 console.error("POST failed:", data);
@@ -46,13 +59,13 @@
             toastTimeout = setTimeout(() => showToast = false, 3000);
             console.log("Successfully submitted vitals.", data);
         } else {
-            // For updating vitals - explicitly show toast at the beginning
+            // Updating an existing composition
             toastMessage = "Updating...";
             showToast = true;
             clearTimeout(toastTimeout);
 
-            const compositionId = updatingVitals.split("::")[0]; // Ensure we split the composition ID
-            const composition = form.export(); // Get the updated composition
+            const compositionId = updatingVitals.split("::")[0];
+            const composition = form.export();
 
             let response = await fetch(`${openEHRRestEndpoint}/ehr/${ehrId}/composition/${compositionId}?templateId=${webtemplate.templateId}`, {
                 method: "PUT",
@@ -69,23 +82,24 @@
 
             if (response.ok) {
                 toastMessage = "Update successful!";
-                showToast = true; // Ensure toast is visible
-                loadVitals(); // Refresh list
-                form.import({}); // Clear form after update
-                updatingVitals = null; // Clear the editing state
+                showToast = true;
+                loadVitals();
+                form.import({});
+                updatingVitals = null;
             } else {
                 toastMessage = "Update failed.";
-                showToast = true; // Ensure toast is visible even on failure
+                showToast = true;
                 console.error("PUT failed:", data);
             }
 
-            // Display the toast for 3 seconds after the update
             toastTimeout = setTimeout(() => showToast = false, 3000);
             console.log("Successfully updated vitals.", data);
         }
     }
 
-
+    /**
+     * Load previously submitted vitals from the server.
+     */
     async function loadVitals() {
         let response = await fetch(`${openEHRRestEndpoint}/query/aql`, {
             method: "POST",
@@ -99,10 +113,15 @@
                 "Content-Type": "application/json"
             }
         });
+
         let data = await response.json();
-        vitals = data.rows.map(([uid, timestamp]: [string, string]) => ({uid, timestamp}));
+
+        vitals = data.rows.map(([uid, timestamp]: [string, string]) => ({ uid, timestamp }));
     }
 
+    /**
+     * Format an ISO timestamp string into a human-readable date-time.
+     */
     function formatDateTime(iso: string) {
         const dateObj = new Date(iso);
         const options: Intl.DateTimeFormatOptions = {
@@ -118,6 +137,9 @@
         return dateObj.toLocaleDateString('en-US', options);
     }
 
+    /**
+     * Load an existing vital composition for editing.
+     */
     async function editVital(vitalUid: string) {
         toastMessage = "Loading entry...";
         showToast = true;
@@ -142,7 +164,9 @@
         }
     }
 
-
+    /**
+     * Delete a vital composition from the server and update the local list.
+     */
     async function deleteVital(uid: string) {
         let response = await fetch(`${openEHRRestEndpoint}/ehr/${ehrId}/composition/${uid}`, {
             method: "DELETE",
@@ -162,6 +186,7 @@
         }
     }
 
+    // Load vitals on component initialization
     loadVitals();
 </script>
 
